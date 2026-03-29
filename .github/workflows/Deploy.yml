@@ -1,0 +1,181 @@
+name: Deploy Application
+on:
+  workflow_call:
+    inputs:
+      app_name:
+        description: 'Name of the application'
+        required: true
+        type: string
+      working-directory: 
+        description: 'Name of the workflow to trigger after build'
+        required: false
+        type: string
+
+    secrets: # لازم تعرفهم هنا عشان الـ Workflow يشوفهم
+      IP_MASTER:
+        required: true
+      SSH_PASSWORD:
+        required: true
+      SSH_USER:
+        required: false
+      
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    
+    steps:
+      
+
+      - name: Checkout DevOps Repo (Docker Compose)
+        uses: actions/checkout@v3
+        
+
+      - name: Install SSH Password Tool
+        run: |
+          echo "🔧 Installing sshpass for password authentication..."
+          sudo apt-get update
+          sudo apt-get install -y sshpass
+          echo "✅ sshpass installed successfully"
+
+      - name: Setup SSH Configuration
+        run: |
+          if [ -z "${{ secrets.IP_MASTER }}" ]; then
+            echo "❌ Missing IP_MASTER secret"
+            exit 1
+          fi
+          if [ -z "${{ secrets.SSH_PASSWORD }}" ]; then
+            echo "❌ Missing SSH_PASSWORD secret"
+            exit 1
+          fi
+          
+          # Set default user to root if SSH_USER not provided
+          SSH_USER="${{ secrets.SSH_USER }}"
+          if [ -z "$SSH_USER" ]; then
+            SSH_USER="root"
+          fi
+          echo "SSH_USER=$SSH_USER" >> $GITHUB_ENV
+          
+          echo "🔧 Setting up SSH configuration..."
+          echo "📍 Target server: ${{ secrets.IP_MASTER }}"
+          echo "👤 SSH User: $SSH_USER"
+          echo "🔐 Using password authentication"
+          
+          mkdir -p ~/.ssh
+          touch ~/.ssh/known_hosts
+          echo "🔍 Scanning host keys..."
+          ssh-keyscan -T 10 -H ${{ secrets.IP_MASTER }} >> ~/.ssh/known_hosts || echo "⚠️ Host key scan failed, will use StrictHostKeyChecking=no"
+
+      - name: Check Server Connectivity
+        timeout-minutes: 2
+        run: |
+          echo "🌐 Testing basic connectivity to ${{ secrets.IP_MASTER }}..."
+          # Test if server responds to ping
+          if ping -c 3 ${{ secrets.IP_MASTER }} > /dev/null 2>&1; then
+            echo "✅ Server is reachable via ping"
+          else
+            echo "❌ Server is not responding to ping"
+            echo "💡 This might be normal if ICMP is disabled"
+          fi
+          
+          # Test if SSH port is open
+          echo "🔍 Testing SSH port (22) connectivity..."
+          if timeout 10 bash -c "</dev/tcp/${{ secrets.IP_MASTER }}/22"; then
+            echo "✅ SSH port 22 is open"
+          else
+            echo "❌ SSH port 22 is not accessible"
+            echo "💡 Please ensure:"
+            echo "   - SSH service is running on the server"
+            echo "   - Port 22 is open in firewall"
+            echo "   - Server IP address is correct"
+            exit 1
+          fi
+
+      - name: Test SSH Connection
+        timeout-minutes: 2
+        run: |
+          echo "🔐 Testing SSH password authentication..."
+          MAX_RETRIES=3
+          RETRY_COUNT=0
+          
+          while [ $RETRY_COUNT -lt $MAX_RETRIES ]; do
+            echo "📡 Attempt $((RETRY_COUNT + 1))/$MAX_RETRIES: Connecting to $SSH_USER@${{ secrets.IP_MASTER }}..."
+            
+            if sshpass -p '${{ secrets.SSH_PASSWORD }}' ssh -o StrictHostKeyChecking=no -o ConnectTimeout=15 $SSH_USER@${{ secrets.IP_MASTER }} 'echo "✅ SSH connection successful!" && whoami && pwd'; then
+              echo "🎉 SSH password authentication successful!"
+              break
+            else
+              echo "❌ SSH connection failed"
+              RETRY_COUNT=$((RETRY_COUNT + 1))
+              if [ $RETRY_COUNT -lt $MAX_RETRIES ]; then
+                echo "⏳ Waiting 10 seconds before retry..."
+                sleep 10
+              fi
+            fi
+          done
+          
+          if [ $RETRY_COUNT -eq $MAX_RETRIES ]; then
+            echo "💥 Failed to establish SSH connection after $MAX_RETRIES attempts"
+            echo "🔍 Troubleshooting for password authentication:"
+            echo "   1. ✅ Verify the password is correct"
+            echo "   2. ✅ Check if password authentication is enabled on server:"
+            echo "      - Edit: sudo nano /etc/ssh/sshd_config"
+            echo "      - Set: PasswordAuthentication yes"
+            echo "      - Set: PermitRootLogin yes (if using root)"
+            echo "      - Restart: sudo systemctl restart ssh"
+            echo "   3. ✅ Ensure user exists on server: cat /etc/passwd | grep $SSH_USER"
+            echo "   4. ✅ Check server SSH logs: sudo tail -f /var/log/auth.log"
+            exit 1
+          fi
+
+      - name: move the config file to the server
+        run: |
+          
+          TARGET_DIR="/root"
+          
+          if sshpass -p '${{ secrets.SSH_PASSWORD }}' scp -o StrictHostKeyChecking=no ${{ inputs.working-directory }}/nginx/nginx.conf $SSH_USER@${{ secrets.IP_MASTER }}:$TARGET_DIR/nginx/nginx.conf; then
+            echo "✅ Configuration file copied successfully to $TARGET_DIR"
+          else
+            echo "❌ Failed to copy configuration file"
+            exit 1
+          fi
+
+      - name: Deploy Docker Compose File
+        run: |
+          
+
+          TARGET_DIR="/root"
+          
+          if sshpass -p '${{ secrets.SSH_PASSWORD }}' scp -o StrictHostKeyChecking=no ${{ inputs.working-directory }}/docker-compose.yml $SSH_USER@${{ secrets.IP_MASTER }}:$TARGET_DIR/docker-compose.yml; then
+            echo "✅ Docker Compose file copied successfully to $TARGET_DIR"
+          else
+            echo "❌ Failed to copy Docker Compose file"
+            exit 1
+          fi
+          
+
+      - name: Deploy and Refresh Application
+        run: |
+          echo "🚀 Refreshing and Deploying application..."
+          TARGET_DIR="/root"
+          
+          sshpass -p '${{ secrets.SSH_PASSWORD }}' ssh -o StrictHostKeyChecking=no $SSH_USER@${{ secrets.IP_MASTER }} "
+            cd $TARGET_DIR && \
+            # 1. سحب الصور الجديدة أولاً
+            docker compose pull && \
+            # 2. حذف الحاويات والـ Volume الخاص بالفرونت تحديداً
+            # استخدمنا -v مع down لمسح كل الـ Volumes أو امسح الفوليوم المطلوب يدوياً
+            docker compose down && \
+            docker volume rm frontend-files || true && \
+            # 3. التشغيل من جديد
+            docker compose up -d
+          "
+
+
+        
+
+      
+        
+
+  
+        

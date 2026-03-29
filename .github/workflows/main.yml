@@ -1,0 +1,27 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+  workflow_dispatch:  # Allows manual triggering
+
+jobs:
+  build:
+    uses: ./.github/workflows/Build.yml
+    with:
+      app_name: "your-app-name"  # Replace with your actual app name
+    secrets:
+      DOCKER_USERNAME: ${{ secrets.DOCKER_USERNAME }}
+      DOCKER_PASSWORD: ${{ secrets.DOCKER_PASSWORD }}
+
+  deploy:
+    needs: build
+    uses: ./.github/workflows/Deploy.yml  
+    with:
+      app_name: "your-app-name"  # Replace with your actual app name
+    secrets:
+      IP_MASTER: ${{ secrets.IP_MASTER }}
+      SSH_PASSWORD: ${{ secrets.SSH_PASSWORD }}
+      SSH_USER: ${{ secrets.SSH_USER }}  # Optional: defaults to 'root' if not provided
