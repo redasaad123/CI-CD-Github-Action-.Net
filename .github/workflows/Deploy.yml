@@ -6,10 +6,6 @@ on:
         description: 'Name of the application'
         required: true
         type: string
-      working-directory: 
-        description: 'Name of the workflow to trigger after build'
-        required: false
-        type: string
 
     secrets: # لازم تعرفهم هنا عشان الـ Workflow يشوفهم
       IP_MASTER:
@@ -22,7 +18,7 @@ on:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-
+    
     
     steps:
       
