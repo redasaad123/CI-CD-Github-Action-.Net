@@ -11,10 +11,7 @@ on:
       IP_MASTER:
         required: true
       SSH_PRIVATE_KEY:
-        required: false
-      SSH_Key:
-        required: false
-      
+        required: true
       SSH_USER:
         required: false
       
@@ -32,9 +29,9 @@ jobs:
 
       - name: Validate SSH key secret
         run: |
-          if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ] && [ -z "${{ secrets.SSH_Key }}" ]; then
+          if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
             echo "❌ Missing SSH private key secret"
-            echo "Provide: SSH_PRIVATE_KEY or SSH_Key"
+            echo "Provide: SSH_PRIVATE_KEY"
             echo "If this workflow is called from another workflow, make sure the caller passes the secret to Deploy.yml"
             exit 1
           fi
@@ -44,7 +41,7 @@ jobs:
       - name: Setup SSH Agent 
         uses: webfactory/ssh-agent@v0.8.0 
         with: 
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY || secrets.SSH_Key }}
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
         
 
 
@@ -82,8 +79,20 @@ jobs:
         run: |
 
           TARGET_DIR="/root"
-          scp  docker-compose.yml $SSH_USER@${{ secrets.IP_MASTER }}:/root/docker-compose.yml
-          scp nginx/nginx.conf $SSH_USER@${{ secrets.IP_MASTER }}:$TARGET_DIR/nginx/nginx.conf
+
+          COMPOSE_SRC="${GITHUB_WORKSPACE}/docker-compose.yml"
+          NGINX_SRC="${GITHUB_WORKSPACE}/nginx/nginx.conf"
+
+          if [ ! -f "$COMPOSE_SRC" ]; then
+            touch "$COMPOSE_SRC"
+          fi
+
+          if [ ! -f "$NGINX_SRC" ]; then
+            mkdir -p "$(dirname "$NGINX_SRC")"
+            touch "$NGINX_SRC"
+          fi
+          scp "$COMPOSE_SRC" $SSH_USER@${{ secrets.IP_MASTER }}:$TARGET_DIR/docker-compose.yml
+          scp "$NGINX_SRC" $SSH_USER@${{ secrets.IP_MASTER }}:$TARGET_DIR/nginx/nginx.conf
           
 
       - name: Deploy
