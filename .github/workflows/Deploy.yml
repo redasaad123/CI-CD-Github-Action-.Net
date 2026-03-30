@@ -11,7 +11,9 @@ on:
       IP_MASTER:
         required: true
       SSH_PRIVATE_KEY:
-        required: true
+        required: false
+      SSH_Key:
+        required: false
       
       SSH_USER:
         required: false
@@ -30,9 +32,9 @@ jobs:
 
       - name: Validate SSH key secret
         run: |
-          if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ]; then
+          if [ -z "${{ secrets.SSH_PRIVATE_KEY }}" ] && [ -z "${{ secrets.SSH_Key }}" ]; then
             echo "❌ Missing SSH private key secret"
-            echo "Provide: SSH_PRIVATE_KEY"
+            echo "Provide: SSH_PRIVATE_KEY or SSH_Key"
             echo "If this workflow is called from another workflow, make sure the caller passes the secret to Deploy.yml"
             exit 1
           fi
@@ -42,7 +44,7 @@ jobs:
       - name: Setup SSH Agent 
         uses: webfactory/ssh-agent@v0.8.0 
         with: 
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY || secrets.SSH_Key }}
         
 
 
