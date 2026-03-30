@@ -82,6 +82,8 @@ jobs:
           scp docker-compose.yml $SSH_USER@${{ secrets.IP_MASTER }}:$TARGET_DIR/docker-compose.yml
           
           cat nginx/nginx.conf | ssh ubuntu@${{ secrets.IP_MASTER }} "sudo tee /etc/nginx/sites-available/default"
+          ssh ubuntu@${{ secrets.IP_MASTER }} "sudo systemctl reload nginx"
+
           
 
       - name: Deploy
