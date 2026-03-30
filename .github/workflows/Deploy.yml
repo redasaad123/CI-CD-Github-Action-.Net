@@ -81,7 +81,7 @@ jobs:
           TARGET_DIR="/home/$SSH_USER"
           scp docker-compose.yml $SSH_USER@${{ secrets.IP_MASTER }}:$TARGET_DIR/docker-compose.yml
           
-          cat nginx.conf | ssh ubuntu@${{ secrets.IP_MASTER }} "sudo tee /etc/nginx/sites-available/default"
+          cat nginx/nginx.conf | ssh ubuntu@${{ secrets.IP_MASTER }} "sudo tee /etc/nginx/sites-available/default"
           
 
       - name: Deploy
