@@ -78,7 +78,7 @@ jobs:
       - name:  copy docker-compose file to remote server
         run: |
 
-          TARGET_DIR="/home/ubuntu"
+          TARGET_DIR="/home/$SSH_USER"
 
           COMPOSE_SRC="${GITHUB_WORKSPACE}/docker-compose.yml"
           NGINX_SRC="${GITHUB_WORKSPACE}/nginx/nginx.conf"
@@ -88,7 +88,7 @@ jobs:
           fi
 
           if [ ! -f "$NGINX_SRC" ]; then
-            mkdir -p "$(dirname "$NGINX_SRC")"
+            mkdir -p $TARGET_DIR/nginx
             touch "$NGINX_SRC"
           fi
           scp "$COMPOSE_SRC" $SSH_USER@${{ secrets.IP_MASTER }}:$TARGET_DIR/docker-compose.yml
