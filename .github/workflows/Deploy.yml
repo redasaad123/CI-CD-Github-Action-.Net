@@ -78,7 +78,7 @@ jobs:
       - name:  copy docker-compose file to remote server
         run: |
 
-          TARGET_DIR="/root"
+          TARGET_DIR="/home/ubuntu"
 
           COMPOSE_SRC="${GITHUB_WORKSPACE}/docker-compose.yml"
           NGINX_SRC="${GITHUB_WORKSPACE}/nginx/nginx.conf"
@@ -98,7 +98,7 @@ jobs:
       - name: Deploy
         run: |
           ssh $SSH_USER@${{ secrets.IP_MASTER }} "
-            cd /root && \
+            cd /home/ubuntu && \
             docker compose pull && \
             docker compose down && \
             docker compose up -d
